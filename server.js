@@ -7,14 +7,23 @@ app.use(express.json({ limit: '10mb' }));
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
+async function generateWithFallback(prompt){
+  const models = ['gemini-2.0-flash','gemini-1.5-flash','gemini-1.5-flash-8b'];
+  for(let m of models){
+    try{
+      let r = await ai.models.generateContent({ model: m, contents: prompt });
+      return r.text;
+    }catch(e){
+      console.log(`Model ${m} failed: ${e.message}`);
+    }
+  }
+  throw new Error("All models failed");
+}
+
 app.post('/api/chat', async (req, res) => {
   try {
-    const { prompt } = req.body;
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
-    res.json({ success: true, text: response.text });
+    const text = await generateWithFallback(req.body.prompt);
+    res.json({ success: true, text });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -22,17 +31,13 @@ app.post('/api/chat', async (req, res) => {
 
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt } = req.body;
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Create a highly detailed, 4k, photorealistic image prompt for: ${prompt}. Only give the final prompt.`,
-    });
-    res.json({ success: true, prompt: response.text });
+    const text = await generateWithFallback(`Create detailed 4k prompt for: ${req.body.prompt}`);
+    res.json({ success: true, prompt: text, text });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-app.get('/', (req, res) => res.send('🔥 AI POWERFUL DANGER SERVER IS LIVE - FINAL FIXED 🔥'));
+app.get('/', (req, res) => res.send('🔥 AI POWERFUL DANGER SERVER LIVE - FINAL FIXED 🔥'));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Running'));
